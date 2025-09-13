@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+        font-size: 13px;
+        padding: 14px;
+        color: #111;
+      }
+      #emoji {
+        text-align: center;
+        font-size: 20px;
+        margin-bottom: 8px;
+        height: 24px;
+      }
+      .status-text {
+        text-align: center;
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+      .bar-container {
+        width: 100%;
+        height: 10px;
+        border-radius: 5px;
+        overflow: hidden;
+        background: #e5e5e5;
+        margin: 6px 0 12px;
+      }
+      .bar-fill {
+        height: 100%;
+        width: 0%;
+        background: #007aff;
+        transition: width 0.3s;
+      }
+      .dups {
+        font-size: 12px;
+        color: #9c6f19;
+        background: #fff4e5;
+        padding: 6px;
+        border-radius: 4px;
+        margin-top: 8px;
+      }
+      button {
+        display: block;
+        margin: 10px auto;
+        padding: 8px 14px;
+        font-size: 13px;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+        background: #f9f9f9;
+        cursor: pointer;
+      }
+      button:hover { background: #f1f1f1; }
+    </style>
+  </head>
+  <body>
+    <div id="last-synced" class="status-text"></div>
+    <div id="emoji"></div>
+    <div id="process-status" class="status-text"></div>
+    <div class="bar-container"><div id="process-bar" class="bar-fill"></div></div>
+    <button id="cancel-btn" style="display:none;" onclick="google.script.run.cancelSync()">CANCEL</button>
+    <div id="duplicates"></div>
+
+    <script>
+      const emojis = ["✨","⚡️","🔥","🚀","🌟","🎉","💫","🌀","🌈","🎶"];
+      let emojiIndex = 0;
+
+      function updateSidebar() {
+        google.script.run.withSuccessHandler(statusJSON => {
+          const status = JSON.parse(statusJSON);
+          const mode = status.mode; // "sync" or "cleanup"
+
+          // last synced
+          document.getElementById("last-synced").innerText =
+            status.lastSynced ? "LAST SYNCED: " + status.lastSynced : "";
+
+          // select which process state to show
+          let proc = (mode === "cleanup") ? status.cleanup : status.sync;
+
+          const bar = document.getElementById("process-bar");
+          const statusText = document.getElementById("process-status");
+          const cancelBtn = document.getElementById("cancel-btn");
+          const emojiDiv = document.getElementById("emoji");
+
+          if (proc.state === "running") {
+            statusText.innerText = proc.msg || (mode === "sync" ? "SYNCING…" : "CLEANING…");
+            bar.style.width = proc.pct + "%";
+            bar.style.background = "#007aff"; // blue
+            cancelBtn.style.display = "block";
+
+            if (mode === "sync") {
+              emojiDiv.innerText = emojis[emojiIndex];
+              emojiIndex = (emojiIndex + 1) % emojis.length;
+            } else {
+              emojiDiv.innerText = "";
+            }
+
+          } else if (proc.state === "idle" && proc.pct === 100) {
+            statusText.innerText = proc.msg || (mode === "sync" ? "✅ SLIDES SYNCED" : "✅ CLEANUP COMPLETE");
+            bar.style.width = "100%";
+            bar.style.background = "#34c759"; // green
+            cancelBtn.style.display = "none";
+            emojiDiv.innerText = "";
+
+          } else if (proc.state === "error") {
+            statusText.innerText = proc.msg || "❌ ERROR";
+            bar.style.width = "100%";
+            bar.style.background = "#ff3b30"; // red
+            cancelBtn.style.display = "none";
+            emojiDiv.innerText = "";
+
+          } else {
+            // idle default
+            statusText.innerText = mode === "sync" ? "READY TO SYNC" : "READY TO CLEANUP";
+            bar.style.width = "0%";
+            bar.style.background = "#007aff";
+            cancelBtn.style.display = "none";
+            emojiDiv.innerText = "";
+          }
+
+          // duplicates
+          const dupDiv = document.getElementById("duplicates");
+          dupDiv.innerHTML = "";
+          if (mode === "cleanup" && proc.duplicates && proc.duplicates.length > 0) {
+            dupDiv.innerHTML = "<div class='dups'>⚠️ DUPLICATES: " +
+              proc.duplicates.join(", ") + "</div>";
+          }
+        }).getSidebarStatus();
+      }
+
+      setInterval(updateSidebar, 800);
+    </script>
+  </body>
+</html>
