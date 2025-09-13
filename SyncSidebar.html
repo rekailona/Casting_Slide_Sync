@@ -55,7 +55,7 @@
       button:hover { background: #f1f1f1; }
     </style>
   </head>
-  <body>
+  <body data-mode="<?= mode ?>">
     <div id="last-synced" class="status-text"></div>
     <div id="emoji"></div>
     <div id="process-status" class="status-text"></div>
@@ -66,11 +66,14 @@
     <script>
       const emojis = ["✨","⚡️","🔥","🚀","🌟","🎉","💫","🌀","🌈","🎶"];
       let emojiIndex = 0;
+      const initialMode = document.body.dataset.mode;
+      document.getElementById("process-status").innerText =
+        initialMode === "cleanup" ? "READY TO CLEANUP" : "READY TO SYNC";
 
       function updateSidebar() {
         google.script.run.withSuccessHandler(statusJSON => {
           const status = JSON.parse(statusJSON);
-          const mode = status.mode; // "sync" or "cleanup"
+          const mode = status.mode || initialMode; // "sync" or "cleanup"
 
           // last synced
           document.getElementById("last-synced").innerText =
