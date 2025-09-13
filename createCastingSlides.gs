@@ -28,9 +28,14 @@ const ROWS_KEY = "SYNC_ROWS";
 const IDX_KEY = "SYNC_IDX";
 const LAST_SYNC_KEY = "LAST_SYNCED";
 const MODE_KEY = "CURRENT_MODE"; // sync or cleanup
+const SYNC_STATE_KEY = "SYNC_STATE";
+const CLEANUP_STATE_KEY = "CLEANUP_STATE";
 
-let SYNC_STATE = { state: "idle", pct: 0, msg: "READY" };
-let CLEANUP_STATE = { state: "idle", pct: 0, msg: "READY", duplicates: [] };
+const DEFAULT_SYNC_STATE = { state: "idle", pct: 0, msg: "READY" };
+const DEFAULT_CLEANUP_STATE = { state: "idle", pct: 0, msg: "READY", duplicates: [] };
+
+let SYNC_STATE = { ...DEFAULT_SYNC_STATE };
+let CLEANUP_STATE = { ...DEFAULT_CLEANUP_STATE };
 
 /***** SAFE TEXT ACCESS *****/
 function safeGetText(shape) {
@@ -44,10 +49,39 @@ function safeAsString(tr) {
 }
 
 /***** STATE HELPERS *****/
-function getSyncState() { return SYNC_STATE; }
-function setSyncState(newState) { SYNC_STATE = { ...SYNC_STATE, ...newState }; }
-function getCleanupState() { return CLEANUP_STATE; }
-function setCleanupState(newState) { CLEANUP_STATE = { ...CLEANUP_STATE, ...newState }; }
+function getSyncState() {
+  const stored = UP.getProperty(SYNC_STATE_KEY);
+  if (stored) {
+    try { SYNC_STATE = JSON.parse(stored); }
+    catch (e) { SYNC_STATE = { ...DEFAULT_SYNC_STATE }; }
+  } else {
+    SYNC_STATE = { ...DEFAULT_SYNC_STATE };
+  }
+  return SYNC_STATE;
+}
+
+function setSyncState(newState) {
+  const current = getSyncState();
+  SYNC_STATE = { ...current, ...newState };
+  UP.setProperty(SYNC_STATE_KEY, JSON.stringify(SYNC_STATE));
+}
+
+function getCleanupState() {
+  const stored = UP.getProperty(CLEANUP_STATE_KEY);
+  if (stored) {
+    try { CLEANUP_STATE = JSON.parse(stored); }
+    catch (e) { CLEANUP_STATE = { ...DEFAULT_CLEANUP_STATE }; }
+  } else {
+    CLEANUP_STATE = { ...DEFAULT_CLEANUP_STATE };
+  }
+  return CLEANUP_STATE;
+}
+
+function setCleanupState(newState) {
+  const current = getCleanupState();
+  CLEANUP_STATE = { ...current, ...newState };
+  UP.setProperty(CLEANUP_STATE_KEY, JSON.stringify(CLEANUP_STATE));
+}
 
 /***** SIDEBAR *****/
 function openSidebar(mode) {
@@ -99,10 +133,10 @@ function menuCleanup() {
 
 /***** CANCEL *****/
 function cancelSync() {
-  setSyncState({ state: "idle", pct: 0, msg: "❌ SYNC CANCELLED" });
-  setCleanupState({ state: "idle", pct: 0, msg: "❌ CLEANUP CANCELLED", duplicates: [] });
   clearBatchTriggers();
   resetProgress();
+  setSyncState({ state: "idle", pct: 0, msg: "❌ SYNC CANCELLED" });
+  setCleanupState({ state: "idle", pct: 0, msg: "❌ CLEANUP CANCELLED", duplicates: [] });
 }
 
 /***** SYNC CONTROL *****/
@@ -188,8 +222,8 @@ function processNextBatch() {
 
     finalizeDeck_(deck, sheet, headers, dateIndex, templateSlide);
 
-    setSyncState({ state: "idle", pct: 100, msg: "✅ SLIDES SYNCED" });
     resetProgress();
+    setSyncState({ state: "idle", pct: 100, msg: "✅ SLIDES SYNCED" });
     UP.setProperty(LAST_SYNC_KEY, new Date().toLocaleString());
 
   } catch (err) {
@@ -289,6 +323,8 @@ function clearBatchTriggers() {
 function resetProgress() {
   UP.deleteProperty(ROWS_KEY);
   UP.deleteProperty(IDX_KEY);
+  UP.deleteProperty(SYNC_STATE_KEY);
+  UP.deleteProperty(CLEANUP_STATE_KEY);
 }
 
 /***** SLIDES – FIND/CREATE & FINALIZE *****/
